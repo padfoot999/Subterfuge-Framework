@@ -1,0 +1,21 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+build/
+dist/
+
+# Legacy generated output and sensitive runtime state (never commit)
+*.log
+*.pem
+*.key
+*.sqlite
+*.sqlite3
+*.sqlite-journal
+credentials.txt
+db
+base_db
+# Historical application keys belong in environment variables, not source
+.env
+.env.*
+!.env.example

@@ -1,0 +1,73 @@
+name: Modern runtime checks
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  desktop-qt-linux:
+    name: Native Qt desktop (Ubuntu Python 3.12)
+    runs-on: ubuntu-latest
+    env:
+      QT_QPA_PLATFORM: offscreen
+      QT_QPA_PLATFORMTHEME: ""
+      QT_STYLE_OVERRIDE: Fusion
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: "3.12"
+      - name: Install Linux libraries required by headless Qt Widgets
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends libegl1 libopengl0 libxkbcommon0 libxkbcommon-x11-0 libxcb-cursor0
+      - name: Install optional native Qt desktop package
+        run: python -m pip install ".[desktop]"
+      - name: Native GUI, server-origin and report tests
+        run: python -m unittest discover -s tests -v
+      - name: Verify native application launchers
+        run: |
+          subterfuge --version
+          python -c "from subterfuge.desktop import DesktopWindow; from subterfuge.web import validate_public_origin; assert validate_public_origin('https://192.0.2.10:8443') == 'https://192.0.2.10:8443'; print('Qt + Web backends available')"
+      - name: Dependency-free browser validation
+        run: |
+          node qa/browser_report_validation.mjs
+          node qa/browser_lab_validation.mjs
+  test:
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - {os: ubuntu-latest, python: "3.11"}
+          - {os: ubuntu-latest, python: "3.12"}
+          - {os: ubuntu-latest, python: "3.13"}
+          - {os: ubuntu-latest, python: "3.14"}
+          - {os: windows-latest, python: "3.12"}
+          - {os: macos-latest, python: "3.12"}
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+      - uses: actions/setup-python@v7.0.0
+        with:
+          python-version: ${{ matrix.python }}
+      - name: Install isolated modern package
+        run: python -m pip install .
+      - name: Offline functional and HTTP boundary regressions
+        run: python -m unittest discover -s tests -v
+      - name: Offline saved-report browser schema regressions (no npm dependencies)
+        run: node qa/browser_report_validation.mjs
+      - name: Optional browser companion regression (no npm dependencies)
+        run: node qa/browser_lab_validation.mjs
+      - name: Installed CLI smoke checks
+        run: |
+          subterfuge --version
+          subterfuge doctor
+          subterfuge demo
+      - name: Build wheel
+        run: python -m pip wheel --no-deps . -w dist
+      - name: Build source archive with isolated backend
+        run: |
+          python -m pip install build
+          python -m build --sdist --outdir dist
+      - name: Inspect modern distribution contents
+        run: python qa/audit_distributions.py dist
